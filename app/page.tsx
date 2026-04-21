@@ -23,7 +23,7 @@ const DEITY_PRESETS = [
   "守護霊",
 ];
 
-const THEME_PRESETS = [
+const DEFAULT_THEME_PRESETS = [
   "何もかも全てうまくいく・全方位好転",
   "金運・豊かさ・富",
   "愛・恋愛・人間関係",
@@ -48,6 +48,8 @@ export default function Home() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [charCount, setCharCount] = useState(0);
+  const [themePresets, setThemePresets] = useState(DEFAULT_THEME_PRESETS);
+  const [newTheme, setNewTheme] = useState("");
   const outputRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -109,6 +111,20 @@ export default function Home() {
     await navigator.clipboard.writeText(script);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleAddTheme = () => {
+    const trimmed = newTheme.trim();
+    if (!trimmed || themePresets.includes(trimmed)) return;
+    setThemePresets((prev) => [...prev, trimmed]);
+    setForm({ ...form, theme: trimmed });
+    setNewTheme("");
+  };
+
+  const handleRemoveTheme = (theme: string) => {
+    if (DEFAULT_THEME_PRESETS.includes(theme)) return;
+    setThemePresets((prev) => prev.filter((t) => t !== theme));
+    if (form.theme === theme) setForm({ ...form, theme: themePresets[0] });
   };
 
   return (
@@ -177,24 +193,76 @@ export default function Home() {
                 placeholder="例: 金運アップ・豊かさ"
               />
               <div className="flex flex-wrap gap-1 mt-2">
-                {THEME_PRESETS.map((preset) => (
-                  <button
-                    key={preset}
-                    onClick={() => setForm({ ...form, theme: preset })}
-                    className="text-xs px-2 py-1 rounded transition-colors"
-                    style={{
-                      background: form.theme === preset
-                        ? "rgba(251,191,36,0.2)"
-                        : "rgba(255,255,255,0.05)",
-                      border: `1px solid ${form.theme === preset ? "rgba(251,191,36,0.5)" : "rgba(255,255,255,0.1)"}`,
-                      color: form.theme === preset ? "#fbbf24" : "rgba(226,217,200,0.6)",
-                      cursor: "pointer",
-                      fontSize: "11px",
-                    }}
-                  >
-                    {preset}
-                  </button>
-                ))}
+                {themePresets.map((preset) => {
+                  const isCustom = !DEFAULT_THEME_PRESETS.includes(preset);
+                  const isActive = form.theme === preset;
+                  return (
+                    <div key={preset} className="relative group" style={{ display: "inline-flex" }}>
+                      <button
+                        onClick={() => setForm({ ...form, theme: preset })}
+                        className="text-xs px-2 py-1 rounded transition-colors"
+                        style={{
+                          background: isActive ? "rgba(251,191,36,0.2)" : "rgba(255,255,255,0.05)",
+                          border: `1px solid ${isActive ? "rgba(251,191,36,0.5)" : "rgba(255,255,255,0.1)"}`,
+                          color: isActive ? "#fbbf24" : "rgba(226,217,200,0.6)",
+                          cursor: "pointer",
+                          fontSize: "11px",
+                          paddingRight: isCustom ? "20px" : undefined,
+                        }}
+                      >
+                        {preset}
+                      </button>
+                      {isCustom && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRemoveTheme(preset); }}
+                          title="削除"
+                          style={{
+                            position: "absolute",
+                            right: "3px",
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                            background: "none",
+                            border: "none",
+                            cursor: "pointer",
+                            color: "rgba(226,217,200,0.4)",
+                            fontSize: "10px",
+                            lineHeight: 1,
+                            padding: 0,
+                          }}
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {/* Add custom theme */}
+              <div className="flex gap-2 mt-2">
+                <input
+                  type="text"
+                  value={newTheme}
+                  onChange={(e) => setNewTheme(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleAddTheme()}
+                  placeholder="テーマを追加..."
+                  style={{ fontSize: "12px", padding: "4px 8px", flex: 1 }}
+                />
+                <button
+                  onClick={handleAddTheme}
+                  disabled={!newTheme.trim()}
+                  style={{
+                    background: newTheme.trim() ? "rgba(251,191,36,0.2)" : "rgba(255,255,255,0.05)",
+                    border: `1px solid ${newTheme.trim() ? "rgba(251,191,36,0.5)" : "rgba(255,255,255,0.1)"}`,
+                    color: newTheme.trim() ? "#fbbf24" : "rgba(226,217,200,0.3)",
+                    cursor: newTheme.trim() ? "pointer" : "default",
+                    borderRadius: "6px",
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  ＋ 追加
+                </button>
               </div>
             </div>
 

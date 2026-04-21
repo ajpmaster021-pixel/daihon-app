@@ -1,9 +1,7 @@
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest } from "next/server";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const SYSTEM_PROMPT = `あなたはスピリチュアル・神様メッセージ系のYouTube台本の専門ライターです。
 以下の特徴を持つ日本語の台本を生成してください：
@@ -63,20 +61,19 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const response = await client.messages.stream({
-          model: "claude-opus-4-6",
-          max_tokens: 8000,
-          system: SYSTEM_PROMPT,
-          messages: [{ role: "user", content: userPrompt }],
+        const model = genAI.getGenerativeModel({
+          model: "gemini-2.5-flash",
+          systemInstruction: SYSTEM_PROMPT,
         });
 
-        for await (const event of response) {
-          if (
-            event.type === "content_block_delta" &&
-            event.delta.type === "text_delta"
-          ) {
-            const chunk = `data: ${JSON.stringify({ text: event.delta.text })}\n\n`;
-            controller.enqueue(encoder.encode(chunk));
+        const result = await model.generateContentStream(userPrompt);
+
+        for await (const chunk of result.stream) {
+          const text = chunk.text();
+          if (text) {
+            controller.enqueue(
+              encoder.encode(`data: ${JSON.stringify({ text })}\n\n`)
+            );
           }
         }
 
