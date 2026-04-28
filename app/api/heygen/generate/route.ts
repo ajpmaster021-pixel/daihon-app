@@ -6,7 +6,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "HEYGEN_API_KEY が設定されていません" }, { status: 500 });
   }
 
-  const { photoId, audioUrl, bgColor, dimension } = await req.json();
+  const { photoId, audioUrl, bgColor, bgType, bgImageUrl, dimension } = await req.json();
 
   if (!photoId) {
     return NextResponse.json({ error: "アバター画像をアップロードしてください" }, { status: 400 });
@@ -28,10 +28,10 @@ export async function POST(req: NextRequest) {
           type: "audio",
           audio_url: audioUrl,
         },
-        background: {
-          type: "color",
-          value: bgColor ?? "#1a0a2e",
-        },
+        background:
+          bgType === "image" && bgImageUrl
+            ? { type: "image", url: bgImageUrl }
+            : { type: "color", value: bgColor ?? "#1a0a2e" },
       },
     ],
     dimension: { width, height },

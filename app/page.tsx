@@ -81,8 +81,13 @@ export default function Home() {
   const [newPhotoAvatarLabel, setNewPhotoAvatarLabel] = useState("");
   const [newPhotoAvatarPreview, setNewPhotoAvatarPreview] = useState<string | null>(null);
   const avatarPreviewInputRef = useRef<HTMLInputElement>(null);
-  const [heygenUploadStatus, setHeygenUploadStatus] = useState<"idle" | "uploading">("idle");
+  const [heygenUploadStatus, setHeygenUploadStatus] = useState<"idle" | "uploading" | "uploading-bg" | "mixing">("idle");
   const [heygenBgColor, setHeygenBgColor] = useState("#1a0a2e");
+  const [heygenBgType, setHeygenBgType] = useState<"color" | "image">("color");
+  const [heygenBgImageFile, setHeygenBgImageFile] = useState<File | null>(null);
+  const [heygenBgImagePreview, setHeygenBgImagePreview] = useState<string | null>(null);
+  const [heygenBgImageUrl, setHeygenBgImageUrl] = useState<string | null>(null);
+  const bgImageInputRef = useRef<HTMLInputElement>(null);
   const [heygenDimension, setHeygenDimension] = useState("1280x720");
   const [heygenVideoId, setHeygenVideoId] = useState("");
   const [heygenStatus, setHeygenStatus] = useState<"idle" | "pending" | "processing" | "completed" | "failed">("idle");
@@ -90,6 +95,11 @@ export default function Home() {
   const [heygenThumbnail, setHeygenThumbnail] = useState("");
   const [heygenError, setHeygenError] = useState("");
   const heygenPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // BGM
+  const [bgmFile, setBgmFile] = useState<File | null>(null);
+  const [bgmVolume, setBgmVolume] = useState(0.3);
+  const bgmInputRef = useRef<HTMLInputElement>(null);
 
   // 約8分相当の文字数（日本語TTSは約300〜350字/分）
   const CHUNK_CHAR_LIMIT = 2500;
@@ -158,6 +168,64 @@ export default function Home() {
     setSavedPhotoAvatars(updated);
     localStorage.setItem("savedPhotoAvatars", JSON.stringify(updated));
     if (selectedPhotoAvatarId === id) setSelectedPhotoAvatarId(updated[0]?.id ?? "");
+  };
+
+  /** AudioBuffer → WAV ArrayBuffer */
+  const audioBufferToWav = (buf: AudioBuffer): ArrayBuffer => {
+    const numCh = buf.numberOfChannels;
+    const sr = buf.sampleRate;
+    const len = buf.length;
+    const bps = 2; // 16-bit
+    const dataSize = numCh * len * bps;
+    const ab = new ArrayBuffer(44 + dataSize);
+    const v = new DataView(ab);
+    const ws = (off: number, s: string) => { for (let i = 0; i < s.length; i++) v.setUint8(off + i, s.charCodeAt(i)); };
+    ws(0, "RIFF"); v.setUint32(4, 36 + dataSize, true);
+    ws(8, "WAVE"); ws(12, "fmt ");
+    v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, numCh, true);
+    v.setUint32(24, sr, true); v.setUint32(28, sr * numCh * bps, true);
+    v.setUint16(32, numCh * bps, true); v.setUint16(34, 16, true);
+    ws(36, "data"); v.setUint32(40, dataSize, true);
+    let off = 44;
+    for (let i = 0; i < len; i++) {
+      for (let ch = 0; ch < numCh; ch++) {
+        const s = Math.max(-1, Math.min(1, buf.getChannelData(ch)[i]));
+        v.setInt16(off, s < 0 ? s * 32768 : s * 32767, true);
+        off += 2;
+      }
+    }
+    return ab;
+  };
+
+  /** 音声（MP3）とBGMをOfflineAudioContextでミックスしてWAVを返す */
+  const mixAudioWithBgm = async (voiceArrayBuffer: ArrayBuffer, bgm: File, vol: number): Promise<ArrayBuffer> => {
+    const tempCtx = new AudioContext();
+    const voiceDecoded = await tempCtx.decodeAudioData(voiceArrayBuffer.slice(0));
+    const bgmDecoded = await tempCtx.decodeAudioData(await bgm.arrayBuffer());
+    await tempCtx.close();
+
+    const duration = voiceDecoded.duration;
+    const sr = voiceDecoded.sampleRate;
+    const offline = new OfflineAudioContext(2, Math.ceil(sr * duration), sr);
+
+    // ボイス
+    const voiceSrc = offline.createBufferSource();
+    voiceSrc.buffer = voiceDecoded;
+    voiceSrc.connect(offline.destination);
+    voiceSrc.start(0);
+
+    // BGM（ループ）
+    const bgmGain = offline.createGain();
+    bgmGain.gain.value = vol;
+    bgmGain.connect(offline.destination);
+    const bgmSrc = offline.createBufferSource();
+    bgmSrc.buffer = bgmDecoded;
+    bgmSrc.loop = true;
+    bgmSrc.connect(bgmGain);
+    bgmSrc.start(0);
+
+    const rendered = await offline.startRendering();
+    return audioBufferToWav(rendered);
   };
 
   const handleGenerateVideo = async () => {
@@ -395,6 +463,24 @@ export default function Home() {
         <p style={{ color: "rgba(226,217,200,0.6)", fontSize: "14px" }}>
           神様・スピリチュアルメッセージ台本を自動生成
         </p>
+        <button
+          onClick={async () => {
+            await fetch("/api/auth/logout", { method: "POST" });
+            window.location.href = "/login";
+          }}
+          style={{
+            marginTop: "10px",
+            fontSize: "11px",
+            color: "rgba(226,217,200,0.3)",
+            background: "none",
+            border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "6px",
+            padding: "4px 12px",
+            cursor: "pointer",
+          }}
+        >
+          ログアウト
+        </button>
       </div>
 
       <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-6">
@@ -1103,6 +1189,18 @@ export default function Home() {
 
       {/* Footer */}
       <div className="text-center mt-10" style={{ color: "rgba(226,217,200,0.2)", fontSize: "12px" }}>
+        <a
+          href="/video-edit"
+          style={{
+            display: "inline-block", marginBottom: "12px",
+            background: "rgba(5,150,105,0.1)", border: "1px solid rgba(16,185,129,0.3)",
+            borderRadius: "8px", padding: "8px 20px",
+            color: "#6ee7b7", fontSize: "13px", textDecoration: "none",
+          }}
+        >
+          🎬 動画編集（グリーンバック除去・背景合成・BGM）
+        </a>
+        <br />
         Powered by Claude API
       </div>
     </main>

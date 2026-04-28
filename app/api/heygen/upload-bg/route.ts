@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+/** 背景画像をHeyGen CDNにアップロードしてURLを返す */
 export async function POST(req: NextRequest) {
   const apiKey = process.env.HEYGEN_API_KEY;
   if (!apiKey?.trim()) {
@@ -7,41 +8,39 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const audioBuffer = await req.arrayBuffer();
-    if (!audioBuffer.byteLength) {
-      return NextResponse.json({ error: "音声データが空です" }, { status: 400 });
+    const contentType = req.headers.get("content-type") || "image/jpeg";
+    const buffer = await req.arrayBuffer();
+    if (!buffer.byteLength) {
+      return NextResponse.json({ error: "画像データが空です" }, { status: 400 });
     }
 
-    // HeyGen asset upload: raw binary with Content-Type
-    const format = new URL(req.url).searchParams.get("format");
-    const contentType = format === "wav" ? "audio/wav" : "audio/mpeg";
     const res = await fetch("https://upload.heygen.com/v1/asset", {
       method: "POST",
       headers: {
         "X-Api-Key": apiKey.trim(),
         "Content-Type": contentType,
       },
-      body: new Uint8Array(audioBuffer),
+      body: new Uint8Array(buffer),
     });
 
     const text = await res.text();
     if (!res.ok) {
       return NextResponse.json(
-        { error: `HeyGen アップロードエラー (${res.status}): ${text.slice(0, 200)}` },
+        { error: `背景画像アップロードエラー (${res.status}): ${text.slice(0, 200)}` },
         { status: res.status }
       );
     }
 
     const data = JSON.parse(text);
-    const audioUrl = data?.data?.url ?? data?.url;
-    if (!audioUrl) {
+    const url = data?.data?.url ?? data?.url;
+    if (!url) {
       return NextResponse.json(
         { error: `URLが取得できませんでした: ${text.slice(0, 200)}` },
         { status: 500 }
       );
     }
 
-    return NextResponse.json({ audioUrl });
+    return NextResponse.json({ url });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "不明なエラー" },
