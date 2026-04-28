@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { NextRequest, NextResponse } from "next/server";
 
 /** 背景画像をHeyGen CDNにアップロードしてURLを返す */

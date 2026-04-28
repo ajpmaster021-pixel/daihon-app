@@ -1,7 +1,10 @@
+export const runtime = "edge";
+
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest } from "next/server";
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+// Edge対応: リクエストごとに初期化
+const getGenAI = () => new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
 
 const SYSTEM_PROMPT = `あなたはスピリチュアル・神様メッセージ系のYouTube台本の専門ライターです。
 以下の特徴を持つ日本語の台本を生成してください：
@@ -61,7 +64,7 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        const model = genAI.getGenerativeModel({
+        const model = getGenAI().getGenerativeModel({
           model: "gemini-2.5-flash",
           systemInstruction: SYSTEM_PROMPT,
         });
