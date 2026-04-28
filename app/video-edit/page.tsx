@@ -177,7 +177,11 @@ export default function VideoEditPage() {
 
       addLog("出力ファイルを読み込んでいます...");
       const data = await ffmpeg.readFile("output.mp4");
-      const blob = new Blob([data], { type: "video/mp4" });
+      // SharedArrayBufferを避けるため通常のArrayBufferにコピー
+      const src = data as Uint8Array;
+      const copy: Uint8Array<ArrayBuffer> = new Uint8Array(src.length);
+      copy.set(src);
+      const blob = new Blob([copy], { type: "video/mp4" });
       setOutputUrl(URL.createObjectURL(blob));
       setProcessStatus("done");
       addLog("✅ 処理完了！");
