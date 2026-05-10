@@ -33,6 +33,7 @@ const DEITY_PRESETS = [
   "不動明王",
   "高次元の存在",
   "守護霊",
+  "北辰妙見菩薩",
 ];
 
 const DEFAULT_THEME_PRESETS = [
